@@ -30,12 +30,80 @@ yarn add react-native-intercepting-webview react-native-webview
 
 Linking
 
-- If you use React Native >= 0.60, autolinking should pick up the native Android and iOS modules.
-- If you are using an older RN version, follow manual linking instructions below.
+- Autolinking (React Native >= 0.60)
+
+  - If your app uses React Native 0.60 or newer, autolinking will automatically pick up the native Android and iOS modules. After installing the package, run:
+
+    ```bash
+    # Install JS dependency
+    npm install react-native-intercepting-webview react-native-webview
+    # or
+    yarn add react-native-intercepting-webview react-native-webview
+
+    # iOS: install CocoaPods
+    cd ios && pod install && cd ..
+    ```
+
+- Manual linking (React Native < 0.60) — Android
+
+  - 1. Add the package to your application's package list (Java example):
+    - Open `android/app/src/main/java/.../MainApplication.java` (or `.kt`) and add:
+      ```java
+      import com.rnintercept.InterceptWebViewPackage;
+      // ...
+      @Override
+      protected List<ReactPackage> getPackages() {
+        List<ReactPackage> packages = new PackageList(this).getPackages();
+        packages.add(new InterceptWebViewPackage());
+        return packages;
+      }
+      ```
+    - If your project requires enabling the package in `settings.gradle` or `build.gradle`, follow your RN <0.60 linking pattern (this repository already contains the package code).
+  - 2. Rebuild the Android app:
+    ```bash
+    cd android && ./gradlew clean && cd .. && react-native run-android
+    ```
+
+- Manual linking (React Native < 0.60) — iOS
+  - 1. In Xcode, add the iOS library project (if present) to your workspace and include it in your app target.
+  - 2. From `ios/` run:
+    ```bash
+    pod install
+    ```
+  - 3. Rebuild the iOS app from Xcode.
+
+Note: This repository already demonstrates adding `InterceptWebViewPackage()` to `MainApplication` in the example app. If you are using autolinking and still don't see the native module at runtime, try cleaning build artifacts and reinstalling (Android: `cd android && ./gradlew clean`; iOS: delete DerivedData and `pod install`).
 
 Quick usage
 
+A minimal example showing how to import and mount the component. This snippet is formatted for copy-paste into a screen component.
+
+```js
+// BasicExample.js
+import React from 'react';
 import InterceptWebView from 'react-native-intercepting-webview';
+
+/*
+  Minimal example: mount a full-screen InterceptWebView and
+  log intercepted events to the console.
+*/
+export default function BasicExample() {
+  return (
+    <InterceptWebView
+      source={{uri: 'https://example.com'}}
+      // Native-side regex for URLs of interest (media in this example)
+      nativeUrlRegex={'\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$'}
+      // General intercept callback (native/dom/video/xhr/fetch)
+      onIntercept={e => console.log('Intercept event:', e)}
+      // Called when a native-intercepted URL matches the nativeUrlRegex
+      onNativeMatch={url => console.log('Native matched URL:', url)}
+      style={{flex: 1}}
+    />
+  );
+}
+```
+
+Below are more advanced examples and explanations.
 
 ## Examples
 
