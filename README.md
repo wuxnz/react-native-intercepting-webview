@@ -4,7 +4,7 @@ A React Native module that provides a WebView with request interception hooks (n
 
 This package exports a single React component:
 
-- [`InterceptWebView`](src/intercepting-webview/index.tsx:70) — a drop-in component that wraps `react-native-webview` and adds request interception plumbing.
+- [`InterceptWebView`](src/intercepting-webview/index.tsx:70) — a drop-in component built on top of the popular [`react-native-webview`](https://github.com/react-native-webview/react-native-webview). This module extends `react-native-webview` with native request interception, buffering utilities, and convenience hooks so you can observe and react to network requests from the WebView.
 
 Highlights
 
