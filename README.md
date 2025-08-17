@@ -32,17 +32,140 @@ Quick usage
 
 import InterceptWebView from 'react-native-intercepting-webview';
 
-function Example() {
-return (
-<InterceptWebView
-source={{ uri: 'https://example.com' }}
-nativeUrlRegex={'\\.mp4(\\?._)?$|\\.m3u8(\\?._)?$'}
-onIntercept={(e) => console.log('intercept:', e)}
-onNativeMatch={(url) => console.log('native match:', url)}
-style={{ flex: 1 }}
-/>
-);
+## Examples
+
+Below are several usage examples with explanatory comments to help integrate the component into your app.
+
+### Basic usage (drop-in)
+
+A minimal example that mounts the component and logs all intercept events to the console.
+
+```js
+// BasicExample.js
+import React from 'react';
+import InterceptWebView from 'react-native-intercepting-webview';
+
+/*
+  This mounts a full-screen webview that posts intercepted requests back to JS via
+  onIntercept. The `nativeUrlRegex` prop is used by the native side to mark URLs
+  of interest (e.g. media files).
+*/
+export default function BasicExample() {
+  return (
+    <InterceptWebView
+      source={{uri: 'https://example.com'}}
+      // Regex to match common media file extensions (pass as a JS string)
+      nativeUrlRegex={'\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$'}
+      onIntercept={e => {
+        // Called for every intercepted message forwarded to JS
+        console.log('Intercept event:', e);
+      }}
+      style={{flex: 1}}
+    />
+  );
 }
+```
+
+See implementation details in [`src/intercepting-webview/index.tsx:70`](src/intercepting-webview/index.tsx:70).
+
+### Advanced usage — runtime JS injection, native-match hook, and buffer access
+
+This example demonstrates:
+
+- Using a ref to run arbitrary JS in the page at runtime (via the underlying WebView).
+- Receiving native-matched URLs via `onNativeMatch`.
+- Fetching recent matches from the native buffer module.
+
+```js
+// AdvancedExample.js
+import React, {useRef, useEffect} from 'react';
+import {NativeModules, DeviceEventEmitter} from 'react-native';
+import InterceptWebView from 'react-native-intercepting-webview';
+
+const {NativeInterceptBuffer} = NativeModules;
+
+export default function AdvancedExample() {
+  // ref forwarded to the underlying WebView so we can inject JS at runtime
+  const webviewRef = useRef(null);
+
+  useEffect(() => {
+    // Example: subscribe to device-level buffer events (optional)
+    const sub = DeviceEventEmitter.addListener(
+      'NativeInterceptBuffer',
+      ({viewId, url}) => {
+        console.log('Buffered native match event:', viewId, url);
+      },
+    );
+    return () => sub.remove();
+  }, []);
+
+  // Example API: call this to inject JS into the page context
+  const injectAlert = () => {
+    const js = `alert('Hello from React Native (injected)'); true;`;
+    // The InterceptWebView component forwards ref to the internal WebView,
+    // so this uses the WebView inject mechanism.
+    webviewRef.current?.injectJavaScript?.(js);
+  };
+
+  const getRecentMatches = async viewId => {
+    try {
+      // NativeInterceptBuffer.getRecent(viewId, n) returns a Promise<string[]>
+      const recent = await NativeInterceptBuffer.getRecent(viewId, 10);
+      console.log('Recent native matches for view', viewId, recent);
+    } catch (err) {
+      console.warn('Failed to get recent matches', err);
+    }
+  };
+
+  return (
+    <>
+      <InterceptWebView
+        ref={webviewRef}
+        source={{uri: 'https://example.com'}}
+        nativeUrlRegex={'\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$'}
+        onIntercept={e => {
+          // General intercept callback (all kinds: native/dom/video/xhr/fetch)
+          console.log('onIntercept', e);
+        }}
+        onNativeMatch={url => {
+          // Called when the native regex matches a captured URL
+          console.log('onNativeMatch:', url);
+          // Optionally use native buffer API to get more context
+          // NOTE: viewId must come from native (if you store it or expose it)
+        }}
+        style={{flex: 1}}
+      />
+      {/* Example controls (UI omitted) */}
+      <button onClick={injectAlert}>Inject JS</button>
+      {/* Note: getRecentMatches requires a viewId which React Native provides at native level */}
+    </>
+  );
+}
+```
+
+Notes:
+
+- Runtime injection uses the underlying WebView API (e.g., [`react-native-webview` injectJavaScript]) and works because this module forwards refs to the inner WebView. See [`src/intercepting-webview/index.tsx:81`](src/intercepting-webview/index.tsx:81).
+- The native buffer interface is implemented in [`android/app/src/main/java/com/rnintercept/NativeInterceptBufferModule.java:28`](android/app/src/main/java/com/rnintercept/NativeInterceptBufferModule.java:28).
+
+### Planned feature usage: built-in ad blocker (example config)
+
+The ad blocker is a planned feature. When implemented the API will look similar to this and allow you to pass a per-view blocklist:
+
+```js
+<InterceptWebView
+  source={{uri: 'https://news.example'}}
+  enableAdBlocker={true}
+  // Example: pass an array of string regexes to block matching requests
+  adBlockList={[
+    '.*ads?\\..*',
+    '.*doubleclick\\.net.*',
+    '\\.adservice\\.(com|net).*',
+  ]}
+/>
+```
+
+This will instruct the native `shouldInterceptRequest` handler to drop matching requests before they reach the page. The default blocklist will be conservative and configurable.
 
 API
 
