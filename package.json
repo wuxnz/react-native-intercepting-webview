@@ -42,7 +42,6 @@
     "test": "jest"
   },
   "dependencies": {
-    "@appzmonster/fetch-interceptor": "^1.0.6",
     "react": "18.3.1",
     "react-native": "0.76.0",
     "react-native-webview": "13.15.0"
