@@ -23,8 +23,6 @@
   "react-native": "index.js",
   "files": [
     "src/",
-    "android/",
-    "ios/",
     "index.js",
     "index.d.ts",
     "README.md"

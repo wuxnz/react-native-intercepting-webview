@@ -73,6 +73,51 @@ Linking
 
 Note: This repository already demonstrates adding `InterceptWebViewPackage()` to `MainApplication` in the example app. If you are using autolinking and still don't see the native module at runtime, try cleaning build artifacts and reinstalling (Android: `cd android && ./gradlew clean`; iOS: delete DerivedData and `pod install`).
 
+Troubleshooting autolinking failures
+
+- Common cause
+
+  - The most common reason autolinking fails after installing this package into an app is that the host app has not installed the required peer dependency `react-native-webview`. The native Android and iOS code in this module imports classes from `react-native-webview` (e.g., `RNCWebViewManager`), so the host app must provide that library at build time.
+
+- How the failure looks
+
+  - Gradle or Xcode will fail with errors referencing missing classes such as `com.reactnativecommunity.webview.RNCWebViewManager` or Pod install failing due to a missing podspec for `react-native-webview`.
+
+- Fixes
+
+  1. Ensure the host app installs `react-native-webview`:
+
+     ```bash
+     # in your app (host) project root
+     npm install react-native-webview
+     # or
+     yarn add react-native-webview
+
+     # iOS: then
+     cd ios && pod install && cd ..
+     ```
+
+  2. Clean and rebuild:
+
+     ```bash
+     # Android
+     cd android && ./gradlew clean && cd .. && npx react-native run-android
+
+     # iOS
+     rm -rf ~/Library/Developer/Xcode/DerivedData
+     cd ios && pod install && cd .. && npx react-native run-ios
+     ```
+
+  3. Avoid duplicate/manual linking
+     - If you manually linked native modules previously, remove duplicate registrations. For example, do not both autolink and manually add `InterceptWebViewPackage()` to `MainApplication` in the host app — pick one. If autolinking is used, remove manual package registration to avoid conflicts.
+  4. If the host app must use a specific version of `react-native-webview`, install a compatible version (this module declares a peer dependency - ensure versions are compatible).
+  5. Advanced: if your build still fails with classpath or manifest merge errors, inspect the Android build output for the exact missing symbol and verify `node_modules/react-native-webview` exists and contains `android/` and `react-native-webview.podspec`.
+
+- If you want this module to install `react-native-webview` automatically (not recommended)
+  - You could add `react-native-webview` to this package's runtime `dependencies`, but that often produces duplicate-native-library issues for consumers. The recommended approach is to keep it as a peerDependency and document the installation steps (as above).
+
+If you can share the exact autolink error message or the Gradle/Xcode build log, I can provide targeted remediation steps.
+
 Quick usage
 
 A minimal example showing how to import and mount the component. This snippet is formatted for copy-paste into a screen component.
