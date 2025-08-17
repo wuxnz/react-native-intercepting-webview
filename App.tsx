@@ -17,13 +17,11 @@ import {
   View,
 } from 'react-native';
 
+import {Colors} from 'react-native/Libraries/NewAppScreen';
 import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+  InterceptWebView,
+  buildDefaultVideoRegex,
+} from './src/intercepting-webview';
 
 type SectionProps = PropsWithChildren<{
   title: string;
@@ -63,35 +61,33 @@ function App(): React.JSX.Element {
   };
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView style={{flex: 1}}>
+      <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: isDarkMode ? Colors.black : Colors.white,
+        }}>
+        <InterceptWebView
+          style={{flex: 1}}
+          source={{
+            uri: 'https://9animetv.to/watch/one-piece-100?ep=2142',
+          }}
+          onIntercept={e => {
+            console.log('Intercepted:', e);
+          }}
+          mediaPlaybackRequiresUserAction={false}
+          javaScriptEnabled
+          domStorageEnabled
+          mixedContentMode="always"
+          // Use the native intercepting webview component on Android (RNNativeInterceptWebView)
+          // nativeUrlRegex is ignored by the native manager which emits all requests
+          nativeUrlRegex={'.*'}
+          onNativeMatch={e => console.log('Native match:', e)}
+          aggressiveDomHooking={false}
+          echoAllRequestsFromJS={false}
+        />
+      </View>
     </SafeAreaView>
   );
 }

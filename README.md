@@ -1,79 +1,111 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# react-native-intercepting-webview
 
-# Getting Started
+A React Native module that provides a WebView with request interception hooks (native and JS), buffering utilities, and an easy-to-use React component wrapper.
 
->**Note**: Make sure you have completed the [React Native - Environment Setup](https://reactnative.dev/docs/environment-setup) instructions till "Creating a new application" step, before proceeding.
+This package exports a single React component:
 
-## Step 1: Start the Metro Server
+- [`InterceptWebView`](src/intercepting-webview/index.tsx:70) — a drop-in component that wraps `react-native-webview` and adds request interception plumbing.
 
-First, you will need to start **Metro**, the JavaScript _bundler_ that ships _with_ React Native.
+Highlights
 
-To start Metro, run the following command from the _root_ of your React Native project:
+- Native-level request interception on Android with per-view and device-level fallbacks.
+- JS-side DOM/video/XHR/fetch hooks via injected script.
+- onIntercept and onNativeMatch hooks to receive URLs as they are intercepted.
+- A small native buffer module to retrieve recent matches from native side: [`NativeInterceptBufferModule`](android/app/src/main/java/com/rnintercept/NativeInterceptBufferModule.java:28).
+- Inject JavaScript (planned): support for programmatic injection of arbitrary JS into the WebView at runtime and convenience helpers to run scripts in the page context.
+- Built-in ad blocker (planned): optional URL-filter based ad-blocking that blocks requests matching a configurable blocklist and provides a lightweight default blocklist; configurable per-WebView via props (e.g. `enableAdBlocker`, `adBlockList`).
 
-```bash
-# using npm
-npm start
+Installation
 
-# OR using Yarn
-yarn start
-```
+npm
+npm install react-native-intercepting-webview react-native-webview
 
-## Step 2: Start your Application
+yarn
+yarn add react-native-intercepting-webview react-native-webview
 
-Let Metro Bundler run in its _own_ terminal. Open a _new_ terminal from the _root_ of your React Native project. Run the following command to start your _Android_ or _iOS_ app:
+Linking
 
-### For Android
+- If you use React Native >= 0.60, autolinking should pick up the native Android and iOS modules.
+- If you are using an older RN version, follow manual linking instructions below.
 
-```bash
-# using npm
-npm run android
+Quick usage
 
-# OR using Yarn
-yarn android
-```
+import InterceptWebView from 'react-native-intercepting-webview';
 
-### For iOS
+function Example() {
+return (
+<InterceptWebView
+source={{ uri: 'https://example.com' }}
+nativeUrlRegex={'\\.mp4(\\?._)?$|\\.m3u8(\\?._)?$'}
+onIntercept={(e) => console.log('intercept:', e)}
+onNativeMatch={(url) => console.log('native match:', url)}
+style={{ flex: 1 }}
+/>
+);
+}
 
-```bash
-# using npm
-npm run ios
+API
 
-# OR using Yarn
-yarn ios
-```
+Component: InterceptWebView
 
-If everything is set up _correctly_, you should see your new app running in your _Android Emulator_ or _iOS Simulator_ shortly provided you have set up your emulator/simulator correctly.
+- Props (in addition to all `WebView` props):
+  - onIntercept?: (e: { url: string; kind: 'native'|'dom'|'video'|'xhr'|'fetch'; userAgent?: string }) => void
+    - Called for intercepted messages forwarded to JS. Useful for logging and processing.
+    - See JS handler at [`src/intercepting-webview/index.tsx`](src/intercepting-webview/index.tsx:86).
+  - onNativeMatch?: (url: string) => void
+    - Called when a native-intercepted URL matches `nativeUrlRegex`. Receives the matched URL string.
+    - Wired to both per-view messages and device-level fallback events.
+  - nativeUrlRegex?: string
+    - JS-compatible regex string used to test intercepted native URLs (case-insensitive).
+  - aggressiveDomHooking?: boolean (default: true)
+    - Whether to use MutationObserver to hook dynamically added DOM elements (video/iframes).
+    - See injected script at [`src/intercepting-webview/injected.ts`](src/intercepting-webview/injected.ts:6).
+  - echoAllRequestsFromJS?: boolean (default: false)
+    - When set, JS DOM hooks will echo all URLs they detect instead of only media-like URLs.
 
-This is one way to run your app — you can also run it directly from within Android Studio and Xcode respectively.
+Native modules (Android)
 
-## Step 3: Modifying your App
+- The Android native code provides:
+  - `RNInterceptWebViewAndroid` view manager (per-view direct emits).
+    - Implemented in [`android/app/src/main/java/com/rnintercept/InterceptWebViewManager.java`](android/app/src/main/java/com/rnintercept/InterceptWebViewManager.java:20).
+  - `RNNativeInterceptWebView` (alternate manager with filterRegexes).
+    - Implemented in [`android/app/src/main/java/com/rnintercept/NativeInterceptWebViewManager.java`](android/app/src/main/java/com/rnintercept/NativeInterceptWebViewManager.java:36).
+  - `NativeInterceptBuffer` native module for buffered recent URLs and event emissions.
+    - Implemented in [`android/app/src/main/java/com/rnintercept/NativeInterceptBufferModule.java`](android/app/src/main/java/com/rnintercept/NativeInterceptBufferModule.java:28).
 
-Now that you have successfully run the app, let's modify it.
+Android manual install (if not using autolinking)
 
-1. Open `App.tsx` in your text editor of choice and edit some lines.
-2. For **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Developer Menu** (<kbd>Ctrl</kbd> + <kbd>M</kbd> (on Window and Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (on macOS)) to see your changes!
+1. Add the package to your app's package list:
 
-   For **iOS**: Hit <kbd>Cmd ⌘</kbd> + <kbd>R</kbd> in your iOS Simulator to reload the app and see your changes!
+   - In `android/app/src/main/java/.../MainApplication.kt`, add:
+     - import com.rnintercept.InterceptWebViewPackage
+     - add(InterceptWebViewPackage()) to the packages list (this repo already demonstrates this).
 
-## Congratulations! :tada:
+2. Rebuild the Android app:
+   - cd android && ./gradlew clean && cd .. && npx react-native run-android
 
-You've successfully run and modified your React Native App. :partying_face:
+iOS notes
 
-### Now what?
+- The iOS view manager files are present in `ios/InterceptWebViewManager.*`. If you need manual steps, open the Xcode workspace and ensure the module is included in your app target and run `pod install` in the `ios` directory.
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [Introduction to React Native](https://reactnative.dev/docs/getting-started).
+Testing & Debugging
 
-# Troubleshooting
+- Enable WebView remote debugging (Android) and inspect via chrome://inspect. The sample `MainApplication.kt` already sets:
+  - WebView.setWebContentsDebuggingEnabled(true) in onCreate.
+- Native Android logging tags:
+  - `RNIntercept` — general native intercept logs (`InterceptWebViewManager`).
+  - `RNNativeIntercept` — logs from the native intercept manager.
+  - `NativeInterceptBuffer` — logs from the buffer module.
 
-If you can't get this to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+Advanced usage
 
-# Learn More
+- Buffer: use `NativeInterceptBuffer.getRecent(viewId, n)` from JS (bridge) to retrieve recent matches for a given viewId (see `NativeInterceptBufferModule`).
+- If you need capture groups from regex matches, modify the `onNativeMatch` wiring in JS to return capture arrays instead of the raw URL; I can add this if desired.
 
-To learn more about React Native, take a look at the following resources:
+Contributing
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+- Pull requests welcome. Please follow the repository coding style & run `npm test` and `npm run lint` before submitting PRs.
+
+License
+
+- MIT (see `package.json`).
