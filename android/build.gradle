@@ -36,9 +36,13 @@ android {
 dependencies {
     // Provided by host app; keep as compileOnly to avoid bundling.
     compileOnly 'com.facebook.react:react-native:+'
-    // react-native-webview classes are referenced at runtime; host app should include the library.
-    // Keep compileOnly to avoid forcing a specific runtime dependency here.
-    compileOnly 'com.reactnativecommunity.webview:react-native-webview:+' // compileOnly assumption; host resolves actual lib
+    // NOTE: Do NOT declare a Maven dependency for react-native-webview here. The host app
+    // provides react-native-webview (node_modules/react-native-webview) and autolinking / Gradle
+    // of the host project will include it. Declaring a Maven artifact causes resolution errors
+    // because react-native-webview is not published under this group in public Maven repos.
+    //
+    // If you need to compile this library locally against react-native-webview during development,
+    // add the dependency in a local example app's settings or use the host app's node_modules.
 }
 
 /*
