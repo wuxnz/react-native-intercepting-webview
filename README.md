@@ -2,6 +2,11 @@
 
 A React Native module that provides a WebView with request interception hooks (native and JS), buffering utilities, and an easy-to-use React component wrapper.
 
+IMPORTANT: Android-only
+
+- This package provides a native Android implementation only. There is no iOS native module included in this package.
+- On non-Android platforms the JS wrapper falls back to `react-native-webview`, but native interception and buffer features are Android-only.
+
 This package exports a single React component:
 
 - [`InterceptWebView`](src/intercepting-webview/index.tsx:70) — a drop-in component built on top of the popular [`react-native-webview`](https://github.com/react-native-webview/react-native-webview). This module extends `react-native-webview` with native request interception, buffering utilities, and convenience hooks so you can observe and react to network requests from the WebView.
@@ -33,7 +38,7 @@ Linking
 
 - Autolinking (React Native >= 0.60)
 
-  - If your app uses React Native 0.60 or newer, autolinking will automatically pick up the native Android and iOS modules. After installing the package, run:
+  - If your app uses React Native 0.60 or newer, autolinking will automatically pick up the native Android module. After installing the package, run:
 
     ```bash
     # Install JS dependency
@@ -41,8 +46,8 @@ Linking
     # or
     yarn add react-native-intercepting-webview react-native-webview
 
-    # iOS: install CocoaPods
-    cd ios && pod install && cd ..
+    # Android: rebuild your app
+    npx react-native run-android
     ```
 
 - Manual linking (React Native < 0.60) — Android
@@ -66,12 +71,7 @@ Linking
     ```
 
 - Manual linking (React Native < 0.60) — iOS
-  - 1. In Xcode, add the iOS library project (if present) to your workspace and include it in your app target.
-  - 2. From `ios/` run:
-    ```bash
-    pod install
-    ```
-  - 3. Rebuild the iOS app from Xcode.
+  - This module does not include an iOS native implementation. Manual linking for iOS is not applicable.
 
 Note: This repository already demonstrates adding `InterceptWebViewPackage()` to `MainApplication` in the example app. If you are using autolinking and still don't see the native module at runtime, try cleaning build artifacts and reinstalling (Android: `cd android && ./gradlew clean`; iOS: delete DerivedData and `pod install`).
 
@@ -104,10 +104,6 @@ Troubleshooting autolinking failures
      ```bash
      # Android
      cd android && ./gradlew clean && cd .. && npx react-native run-android
-
-     # iOS
-     rm -rf ~/Library/Developer/Xcode/DerivedData
-     cd ios && pod install && cd .. && npx react-native run-ios
      ```
 
   3. Avoid duplicate/manual linking
@@ -126,8 +122,8 @@ A minimal example showing how to import and mount the component. This snippet is
 
 ```js
 // BasicExample.js
-import React from 'react';
-import InterceptWebView from 'react-native-intercepting-webview';
+import React from "react";
+import InterceptWebView from "react-native-intercepting-webview";
 
 /*
   Minimal example: mount a full-screen InterceptWebView and
@@ -136,14 +132,14 @@ import InterceptWebView from 'react-native-intercepting-webview';
 export default function BasicExample() {
   return (
     <InterceptWebView
-      source={{uri: 'https://example.com'}}
+      source={{ uri: "https://example.com" }}
       // Native-side regex for URLs of interest (media in this example)
-      nativeUrlRegex={'\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$'}
+      nativeUrlRegex={"\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$"}
       // General intercept callback (native/dom/video/xhr/fetch)
-      onIntercept={e => console.log('Intercept event:', e)}
+      onIntercept={(e) => console.log("Intercept event:", e)}
       // Called when a native-intercepted URL matches the nativeUrlRegex
-      onNativeMatch={url => console.log('Native matched URL:', url)}
-      style={{flex: 1}}
+      onNativeMatch={(url) => console.log("Native matched URL:", url)}
+      style={{ flex: 1 }}
     />
   );
 }
@@ -161,8 +157,8 @@ A minimal example that mounts the component and logs all intercept events to the
 
 ```js
 // BasicExample.js
-import React from 'react';
-import InterceptWebView from 'react-native-intercepting-webview';
+import React from "react";
+import InterceptWebView from "react-native-intercepting-webview";
 
 /*
   This mounts a full-screen webview that posts intercepted requests back to JS via
@@ -172,14 +168,14 @@ import InterceptWebView from 'react-native-intercepting-webview';
 export default function BasicExample() {
   return (
     <InterceptWebView
-      source={{uri: 'https://example.com'}}
+      source={{ uri: "https://example.com" }}
       // Regex to match common media file extensions (pass as a JS string)
-      nativeUrlRegex={'\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$'}
-      onIntercept={e => {
+      nativeUrlRegex={"\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$"}
+      onIntercept={(e) => {
         // Called for every intercepted message forwarded to JS
-        console.log('Intercept event:', e);
+        console.log("Intercept event:", e);
       }}
-      style={{flex: 1}}
+      style={{ flex: 1 }}
     />
   );
 }
@@ -197,11 +193,11 @@ This example demonstrates:
 
 ```js
 // AdvancedExample.js
-import React, {useRef, useEffect} from 'react';
-import {NativeModules, DeviceEventEmitter} from 'react-native';
-import InterceptWebView from 'react-native-intercepting-webview';
+import React, { useRef, useEffect } from "react";
+import { NativeModules, DeviceEventEmitter } from "react-native";
+import InterceptWebView from "react-native-intercepting-webview";
 
-const {NativeInterceptBuffer} = NativeModules;
+const { NativeInterceptBuffer } = NativeModules;
 
 export default function AdvancedExample() {
   // ref forwarded to the underlying WebView so we can inject JS at runtime
@@ -210,10 +206,10 @@ export default function AdvancedExample() {
   useEffect(() => {
     // Example: subscribe to device-level buffer events (optional)
     const sub = DeviceEventEmitter.addListener(
-      'NativeInterceptBuffer',
-      ({viewId, url}) => {
-        console.log('Buffered native match event:', viewId, url);
-      },
+      "NativeInterceptBuffer",
+      ({ viewId, url }) => {
+        console.log("Buffered native match event:", viewId, url);
+      }
     );
     return () => sub.remove();
   }, []);
@@ -226,13 +222,13 @@ export default function AdvancedExample() {
     webviewRef.current?.injectJavaScript?.(js);
   };
 
-  const getRecentMatches = async viewId => {
+  const getRecentMatches = async (viewId) => {
     try {
       // NativeInterceptBuffer.getRecent(viewId, n) returns a Promise<string[]>
       const recent = await NativeInterceptBuffer.getRecent(viewId, 10);
-      console.log('Recent native matches for view', viewId, recent);
+      console.log("Recent native matches for view", viewId, recent);
     } catch (err) {
-      console.warn('Failed to get recent matches', err);
+      console.warn("Failed to get recent matches", err);
     }
   };
 
@@ -240,19 +236,19 @@ export default function AdvancedExample() {
     <>
       <InterceptWebView
         ref={webviewRef}
-        source={{uri: 'https://example.com'}}
-        nativeUrlRegex={'\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$'}
-        onIntercept={e => {
+        source={{ uri: "https://example.com" }}
+        nativeUrlRegex={"\\.mp4(\\?.*)?$|\\.m3u8(\\?.*)?$"}
+        onIntercept={(e) => {
           // General intercept callback (all kinds: native/dom/video/xhr/fetch)
-          console.log('onIntercept', e);
+          console.log("onIntercept", e);
         }}
-        onNativeMatch={url => {
+        onNativeMatch={(url) => {
           // Called when the native regex matches a captured URL
-          console.log('onNativeMatch:', url);
+          console.log("onNativeMatch:", url);
           // Optionally use native buffer API to get more context
           // NOTE: viewId must come from native (if you store it or expose it)
         }}
-        style={{flex: 1}}
+        style={{ flex: 1 }}
       />
       {/* Example controls (UI omitted) */}
       <button onClick={injectAlert}>Inject JS</button>
@@ -273,13 +269,13 @@ The ad blocker is a planned feature. When implemented the API will look similar 
 
 ```js
 <InterceptWebView
-  source={{uri: 'https://news.example'}}
+  source={{ uri: "https://news.example" }}
   enableAdBlocker={true}
   // Example: pass an array of string regexes to block matching requests
   adBlockList={[
-    '.*ads?\\..*',
-    '.*doubleclick\\.net.*',
-    '\\.adservice\\.(com|net).*',
+    ".*ads?\\..*",
+    ".*doubleclick\\.net.*",
+    "\\.adservice\\.(com|net).*",
   ]}
 />
 ```
@@ -331,7 +327,7 @@ cd android && ./gradlew clean && cd .. && npx react-native run-android
 
 iOS notes
 
-- The iOS view manager files are present in `ios/InterceptWebViewManager.*`. If you need manual steps, open the Xcode workspace and ensure the module is included in your app target and run `pod install` in the `ios` directory.
+- This package does not include an iOS native implementation. The native interception features (native events, buffer module) are Android-only. On non-Android platforms the JS wrapper will fall back to the underlying `react-native-webview` without the native interception features.
 
 Testing & Debugging
 
