@@ -9,10 +9,10 @@ import android.webkit.WebView;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.Arguments;
-import com.facebook.react.bridge.WritableMap;
+import com.facebook.react.bridge.ReactApplicationContext;
 import com.facebook.react.bridge.ReactContext;
+import com.facebook.react.bridge.WritableMap;
 import com.facebook.react.bridge.ReadableArray;
 import com.facebook.react.common.MapBuilder;
 import com.reactnativecommunity.webview.RNCWebViewClient;
@@ -28,10 +28,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.Map;
 
 /**
- * RNC-based WebView manager that intercepts requests and emits events to JS.
- * Supports a per-view "filterRegexes" prop (array of strings) — only requests that match
- * any of the passed regexes will be emitted to JS. If filterRegexes is empty or not
- * provided, all requests are considered.
+ * Library copy of NativeInterceptWebViewManager for android-lib.
+ * Keeps same behavior as the example manager but compiled as a library.
  */
 public class NativeInterceptWebViewManager extends RNCWebViewManager {
     public static final String REACT_CLASS = "RNNativeInterceptWebView";
@@ -40,7 +38,7 @@ public class NativeInterceptWebViewManager extends RNCWebViewManager {
     // Map viewId -> list of compiled Patterns
     private static final ConcurrentHashMap<Integer, List<Pattern>> viewFilterMap = new ConcurrentHashMap<>();
 
-    public NativeInterceptWebViewManager(ReactApplicationContext reactContext) { super(); }
+    public NativeInterceptWebViewManager(ReactApplicationContext reactContext) { super(reactContext); }
 
     @NonNull
     @Override
@@ -97,7 +95,6 @@ public class NativeInterceptWebViewManager extends RNCWebViewManager {
                     }
                 }
             } catch (Throwable t) {
-                // If any error with matching, default to not matched to avoid noise
                 try { android.util.Log.i("RNNativeIntercept", "filter check failed: " + t.getMessage()); } catch (Throwable ignored) {}
                 matched = false;
             }

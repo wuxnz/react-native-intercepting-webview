@@ -1,0 +1,7 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.rnintercept">
+    <!-- Minimal manifest for library module; kept empty on purpose.
+         This helps Gradle/codegen recognize the package without any app-level
+         configuration and avoids autolinking/codegen errors when the host app
+         discovers this library. -->
+</manifest>

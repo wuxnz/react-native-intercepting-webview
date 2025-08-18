@@ -1,22 +1,19 @@
 /**
- * Prevent the React Native CLI autolinking step from scanning the repository's
- * example android/ and ios/ app directories when this package is installed
- * directly (for example from a git URL or local path). This project contains
- * an example app / full `android/` app directory and that can confuse the CLI
- * which expects a library-style native folder with a proper package namespace.
+ * react-native.config.js for this package.
  *
- * We intentionally disable autolinking for platforms here to avoid build
- * failures in host apps. Consumers should install the peer dependency
- * 'react-native-webview' and follow the installation instructions in the README.
+ * The Android native implementation lives in ./android (library-style module).
+ * iOS is intentionally left empty until an iOS Podspec is provided.
  *
- * If you later refactor this repository to export a library-style android/ and
- * ios/ directory (with proper Gradle and Podspec configuration), remove this
- * file so autolinking can pick up the native modules automatically.
+ * Consumers should install the peer dependency 'react-native-webview' in the host app.
  */
 module.exports = {
   dependency: {
     platforms: {
-      android: null,
+      // We provide Android native code in ./android
+      android: {
+        sourceDir: './android',
+      },
+      // iOS module is not implemented yet
       ios: null,
     },
   },

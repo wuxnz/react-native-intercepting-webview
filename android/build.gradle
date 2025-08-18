@@ -1,21 +1,48 @@
-buildscript {
-    ext {
-        buildToolsVersion = "35.0.0"
-        minSdkVersion = 24
-        compileSdkVersion = 35
-        targetSdkVersion = 34
-        ndkVersion = "26.1.10909125"
-        kotlinVersion = "1.9.24"
+/*
+ * Library module build for react-native-intercepting-webview (android-lib)
+ *
+ * This module compiles the Java native sources into an AAR that can be autolinked
+ * by host React Native applications.
+ *
+ * Keep runtime dependencies minimal: react-native and react-native-webview are
+ * expected to be provided by the host app (declared as peerDependencies in package.json).
+ */
+plugins {
+    id 'com.android.library'
+    id 'maven-publish'
+}
+
+android {
+    compileSdk 33
+
+    namespace 'com.rnintercept'
+
+    defaultConfig {
+        minSdk 21
+        targetSdk 33
     }
-    repositories {
-        google()
-        mavenCentral()
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_11
+        targetCompatibility JavaVersion.VERSION_11
     }
-    dependencies {
-        classpath("com.android.tools.build:gradle")
-        classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin")
+
+    // Optional: publishing configuration for AAR
+    publishing {
+        singleVariant('release') { withSourcesJar() }
     }
 }
 
-apply plugin: "com.facebook.react.rootproject"
+dependencies {
+    // Provided by host app; keep as compileOnly to avoid bundling.
+    compileOnly 'com.facebook.react:react-native:+'
+    // react-native-webview classes are referenced at runtime; host app should include the library.
+    // Keep compileOnly to avoid forcing a specific runtime dependency here.
+    compileOnly 'com.reactnativecommunity.webview:react-native-webview:+' // compileOnly assumption; host resolves actual lib
+}
+
+/*
+Notes:
+- This module is intended to be detected by autolinking via react-native.config.js (pointing to ./android-lib).
+- We'll add the native Java sources into android-lib/src/main/java/com/rnintercept in subsequent steps.
+*/

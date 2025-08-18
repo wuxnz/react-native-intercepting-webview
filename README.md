@@ -12,6 +12,8 @@ Highlights
 - JS-side DOM/video/XHR/fetch hooks via injected script.
 - onIntercept and onNativeMatch hooks to receive URLs as they are intercepted.
 - A small native buffer module to retrieve recent matches from native side: [`NativeInterceptBufferModule`](android/app/src/main/java/com/rnintercept/NativeInterceptBufferModule.java:28).
+- Intercept headers (planned): provide access to request headers for intercepted requests and allow inspection from JS.
+- Intercept entire request (planned): ability to access full request details (method, headers, body) and optionally modify or block the request before it is sent.
 - Built-in ad blocker (planned): optional URL-filter based ad-blocking that blocks requests matching a configurable blocklist and provides a lightweight default blocklist; configurable per-WebView via props (e.g. `enableAdBlocker`, `adBlockList`).
   Installation
 

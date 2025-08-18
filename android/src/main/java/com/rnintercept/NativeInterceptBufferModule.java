@@ -14,16 +14,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Native module that buffers intercepted URLs per WebView (viewId).
- * Exposes:
- *  - getName(): module name "NativeInterceptBuffer"
- *  - getRecent(viewId, n): Promise<string[]>
- *  - subscribe(viewId): registers interest on native side (no-op but tracked)
- *  - unsubscribe(viewId): unregister
- *
- * Native code should call addMatch(viewId, url) to record a match; this module
- * will buffer it and emit an event "NativeInterceptBuffer" { viewId, url } to JS
- * only for subscribed viewIds (to avoid unnecessary traffic).
+ * Library copy of NativeInterceptBufferModule for android-lib.
+ * Exposes getRecent/subscribe/unsubscribe and internal addMatch for native managers.
  */
 public class NativeInterceptBufferModule extends ReactContextBaseJavaModule {
     private final ReactApplicationContext reactContext;

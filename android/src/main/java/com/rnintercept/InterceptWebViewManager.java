@@ -17,11 +17,15 @@ import com.reactnativecommunity.webview.RNCWebViewWrapper;
 import com.facebook.react.bridge.ReactContext;
 import com.facebook.react.modules.core.DeviceEventManagerModule;
 
+/*
+  Library copy of InterceptWebViewManager moved into android-lib.
+  It mirrors the implementation previously in the example app.
+*/
 public class InterceptWebViewManager extends RNCWebViewManager {
     public static final String REACT_CLASS = "RNInterceptWebViewAndroid";
     private String nativeUrlRegex = "";
 
-    public InterceptWebViewManager(ReactApplicationContext reactContext) { super(); }
+    public InterceptWebViewManager(ReactApplicationContext reactContext) { super(reactContext); }
 
     @NonNull
     @Override

@@ -21,8 +21,15 @@
   "main": "index.js",
   "types": "index.d.ts",
   "react-native": "index.js",
+  "codegenConfig": {
+    "name": "react-native-intercepting-webview",
+    "jsSrcsDir": "src/intercepting-webview",
+    "libraryName": "react-native-intercepting-webview",
+    "commands": []
+  },
   "files": [
     "src/",
+    "android/",
     "index.js",
     "index.d.ts",
     "README.md"
