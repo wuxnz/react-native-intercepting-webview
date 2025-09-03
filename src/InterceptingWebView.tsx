@@ -5,12 +5,14 @@ import {
   UIManager,
   requireNativeComponent,
   View,
+  type ViewStyle,
 } from 'react-native';
-import type { NativeSyntheticEvent } from 'react-native';
+import type { NativeSyntheticEvent, StyleProp } from 'react-native';
 import { buildInjected } from './injected';
 
 /**
- * Intercept events emitted from JS or native.
+ * Represents an intercepted network or media event originating from either
+ * the native Android layer or from injected DOM/JS hooks.
  */
 export type InterceptEvent = {
   url: string;
@@ -19,17 +21,23 @@ export type InterceptEvent = {
 };
 
 /**
- * Props for InterceptingWebView.
- * This component prefers a native Android view when available
- * (RNNativeInterceptWebView or RNInterceptWebViewAndroid),
- * otherwise it falls back to the JS WebView.
+ * Source for the web content.
+ * Either a remote URL via `uri` or raw HTML content via `html`.
  */
 export type InterceptSource =
   | { uri: string }
   | { html: string };
 
+/**
+ * Props for `InterceptingWebView`.
+ *
+ * This component prefers a native Android view when available
+ * (RNNativeInterceptWebView or RNInterceptWebViewAndroid),
+ * otherwise it falls back to a plain JS `View` (no iOS native impl yet).
+ */
 export type InterceptProps = {
-  style?: any;
+  /** Optional style for the container/view. */
+  style?: StyleProp<ViewStyle>;
   source: InterceptSource;
   /** Called whenever a request is intercepted (native or JS). */
   onIntercept?: (e: InterceptEvent) => void;
@@ -50,7 +58,7 @@ export type InterceptProps = {
   /** Raw JS executed after content loads. */
   injectedJavaScript?: string;
   /** Receive raw postMessage events from the page. */
-  onMessage?: (e: NativeSyntheticEvent<any>) => void;
+  onMessage?: (e: NativeSyntheticEvent<{ data?: string }>) => void;
 };
 
 const COMPONENT_CANDIDATES_ANDROID = [
@@ -75,6 +83,10 @@ if (Platform.OS === 'android') {
 }
 
 /** Default regex to detect common media URLs. */
+/**
+ * Build a default case-insensitive regex string that matches common
+ * streaming or media file extensions (e.g. m3u8, mp4, webm, mpd, ts).
+ */
 export function buildDefaultVideoRegex() {
   return String(/(\.m3u8(\?.*)?$)|(\.mp4(\?.*)?$)|(\.webm(\?.*)?$)|(\.mpd(\?.*)?$)|(\.ts(\?.*)?$)/i);
 }
@@ -99,6 +111,13 @@ function parseRegexString(s?: string): RegExp | null {
  * Android-first WebView with native request interception and rich JS hooks.
  * iOS is intentionally not implemented and will use the JS fallback path.
  */
+/**
+ * Android-first WebView-like component with native interception and rich JS hooks.
+ *
+ * Notes:
+ * - On Android, if a compatible native view manager is available, it will be used.
+ * - On iOS or when `forceFallback` is true or native is unavailable, falls back to a plain `View`.
+ */
 export const InterceptingWebView: FC<InterceptProps> = ({
   style,
   source,
@@ -113,7 +132,7 @@ export const InterceptingWebView: FC<InterceptProps> = ({
   injectedJavaScript,
   onMessage,
 }) => {
-  const ref = useRef<any>(null);
+  const ref = useRef<View | null>(null);
 
   const injected = useMemo(
     () => buildInjected({ aggressiveDomHooking, echoAllRequestsFromJS }),
@@ -121,7 +140,7 @@ export const InterceptingWebView: FC<InterceptProps> = ({
   );
 
   const handleMessage = useCallback(
-    (e: NativeSyntheticEvent<any>) => {
+    (e: NativeSyntheticEvent<{ data?: string }>) => {
       try {
         try { console.log('[IWV] onMessage', String(e?.nativeEvent?.data ?? '')); } catch {}
         const data = JSON.parse(e.nativeEvent?.data);

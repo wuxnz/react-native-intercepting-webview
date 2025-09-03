@@ -1,12 +1,20 @@
 /**
- * Build the JS to be injected into the WebView.
- * This script hooks into video elements, optional fetch/xhr, and Performance API
- * and forwards URLs to React Native via postMessage with a robust queue.
+ * Build the JavaScript source string to inject into the page.
+ *
+ * The injected code:
+ * - Hooks into HTMLMediaElement sources to observe media URLs.
+ * - Optionally echoes all JS-initiated requests (fetch/xhr).
+ * - Samples the Performance API to catch resource URLs.
+ * - Sends events through `window.ReactNativeWebView.postMessage` with a queue fallback.
+ *
+ * @param opts.aggressiveDomHooking When true, attach a MutationObserver to aggressively hook new nodes.
+ * @param opts.echoAllRequestsFromJS When true, echo all fetch/xhr URLs to React Native.
+ * @returns JavaScript source as a string to inject into the WebView.
  */
 export function buildInjected(opts: {
   aggressiveDomHooking: boolean;
   echoAllRequestsFromJS: boolean;
-}) {
+}): string {
   const { aggressiveDomHooking, echoAllRequestsFromJS } = opts;
   return `
 (function(){
