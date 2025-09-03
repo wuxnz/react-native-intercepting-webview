@@ -14,9 +14,27 @@ import { buildInjected } from './injected';
  * Represents an intercepted network or media event originating from either
  * the native Android layer or from injected DOM/JS hooks.
  */
-export type InterceptEvent = {
+export type InterceptRequest = {
   url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  isMainFrame?: boolean;
+  hasUserGesture?: boolean;
+};
+
+export type InterceptResponse = {
+  status?: number;
+  reason?: string;
+  headers?: Record<string, string>;
+  mimeType?: string;
+  contentEncoding?: string;
+  contentLength?: number;
+};
+
+export type InterceptEvent = {
   kind: 'native' | 'dom' | 'video' | 'xhr' | 'fetch' | 'perf';
+  request: InterceptRequest;
+  response?: InterceptResponse;
   userAgent?: string;
 };
 
@@ -41,8 +59,8 @@ export type InterceptProps = {
   source: InterceptSource;
   /** Called whenever a request is intercepted (native or JS). */
   onIntercept?: (e: InterceptEvent) => void;
-  /** If provided, when a native URL matches the regex, this callback will be invoked. */
-  onNativeMatch?: (url: string) => void;
+  /** If provided, when a native URL matches the regex, this callback will be invoked with the full payload. */
+  onNativeMatch?: (e: InterceptEvent) => void;
   /** Android-only regex that narrows which URLs are emitted by native. */
   nativeUrlRegex?: string;
   /** Android-only: additional native filtering (reserved for parity; may be ignored). */
@@ -146,17 +164,25 @@ export const InterceptingWebView: FC<InterceptProps> = ({
         try { console.log('[IWV] onMessage', String(e?.nativeEvent?.data ?? '')); } catch {}
         const data = JSON.parse(String(e.nativeEvent?.data ?? ''));
         if (data && data.__rnIntercept) {
-          const payload = data.payload as InterceptEvent;
-          onIntercept?.(payload);
+          let payload = data.payload as any;
+          // Adapt legacy JS payloads that may only contain { kind, url }
+          if (payload && typeof payload === 'object' && !payload.request && payload.url) {
+            payload = {
+              kind: payload.kind || 'dom',
+              request: { url: String(payload.url) },
+            } as InterceptEvent;
+          }
+          onIntercept?.(payload as InterceptEvent);
           try {
             if (
               onNativeMatch &&
               nativeUrlRegex &&
-              payload?.url &&
+              (payload as InterceptEvent)?.request?.url &&
               payload.kind === 'native'
             ) {
               const re = new RegExp(nativeUrlRegex, 'i');
-              if (re.test(String(payload.url))) onNativeMatch(String(payload.url));
+              const url = String((payload as InterceptEvent).request.url);
+              if (re.test(url)) onNativeMatch(payload as InterceptEvent);
             }
           } catch { }
           return;
@@ -170,16 +196,18 @@ export const InterceptingWebView: FC<InterceptProps> = ({
   // Global native fallback emitter
   useEffect(() => {
     if (!onIntercept && !onNativeMatch) return;
-    const sub = DeviceEventEmitter.addListener('RNInterceptNative', (url: string) => {
+    const sub = DeviceEventEmitter.addListener('RNInterceptNative', (payload: any) => {
       try {
-        if (!url) return;
-        try { console.log('[IWV] global onIntercept', String(url)); } catch {}
-        onIntercept?.({ url: String(url), kind: 'native' });
-        if (onNativeMatch && nativeUrlRegex) {
-          try {
-            const re = parseRegexString(nativeUrlRegex);
-            if (re && re.test(String(url))) onNativeMatch(String(url));
-          } catch { }
+        if (!payload) return;
+        // If native sent only a url string (very old), adapt it
+        const full: InterceptEvent = typeof payload === 'string'
+          ? { kind: 'native', request: { url: String(payload) } }
+          : payload;
+        try { console.log('[IWV] global onIntercept', full?.request?.url); } catch {}
+        onIntercept?.(full);
+        if (onNativeMatch && nativeUrlRegex && full?.request?.url) {
+          const re = parseRegexString(nativeUrlRegex);
+          if (re && re.test(String(full.request.url))) onNativeMatch(full);
         }
       } catch { }
     });
@@ -214,15 +242,16 @@ export const InterceptingWebView: FC<InterceptProps> = ({
         injected + (injectedJavaScriptBeforeContentLoaded || '') + (injectedJavaScript || '') + manualPing,
       onIntercept: (e: any) => {
         try {
-          const url = e?.nativeEvent?.url ?? e?.url;
-          if (url) {
-            try { console.log('[IWV] direct onIntercept', String(url)); } catch {}
-            onIntercept?.({ url: String(url), kind: 'native' });
-            if (onNativeMatch && nativeUrlRegex) {
-              try {
-                const re = parseRegexString(nativeUrlRegex);
-                if (re && re.test(String(url))) onNativeMatch(String(url));
-              } catch {}
+          const payload = e?.nativeEvent ?? e;
+          const full: InterceptEvent = payload?.request?.url
+            ? payload
+            : { kind: 'native', request: { url: String(payload?.url ?? '') } };
+          if (full?.request?.url) {
+            try { console.log('[IWV] direct onIntercept', String(full.request.url)); } catch {}
+            onIntercept?.(full);
+            if (onNativeMatch && nativeUrlRegex && full.kind === 'native') {
+              const re = parseRegexString(nativeUrlRegex);
+              if (re && re.test(String(full.request.url))) onNativeMatch(full);
             }
           }
         } catch { }

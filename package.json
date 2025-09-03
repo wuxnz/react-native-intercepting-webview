@@ -1,6 +1,6 @@
 {
   "name": "react-native-intercepting-webview",
-  "version": "0.0.2-rc",
+  "version": "0.0.2",
   "description": "A webview module that gives you access to network requests inside the webview",
   "main": "./lib/module/index.js",
   "types": "./lib/typescript/src/index.d.ts",
@@ -30,6 +30,9 @@
     "!**/__fixtures__",
     "!**/__mocks__",
     "!**/.*"
+  ],
+  "workspaces": [
+    "example"
   ],
   "scripts": {
     "example": "yarn --cwd example",

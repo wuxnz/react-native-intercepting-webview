@@ -6,9 +6,9 @@ This library lets you observe network requests initiated inside the WebView (e.g
 
 Key points:
 
-- Native (Android) emits an intercept event for every request.
-- `nativeUrlRegex` is used solely to trigger `onNativeMatch`; it does not filter `onIntercept`.
-- A global fallback event is also emitted via `DeviceEventEmitter` with the name `RNInterceptNative`.
+- Native (Android) emits an intercept event for every request. For URLs that match `nativeUrlRegex`, the Android layer proxies the request to capture response metadata and serves it back to the WebView.
+- `nativeUrlRegex` determines which requests are fully proxied (and thus include response info). Non‑matching requests still emit a request event but are not proxied.
+- A global fallback event is also emitted via `DeviceEventEmitter` with the name `RNInterceptNative` (now emits a structured payload instead of a plain URL string).
 
 ## Requirements
 
@@ -40,15 +40,15 @@ export default function App() {
     <View style={{ flex: 1 }}>
       <InterceptingWebView
         source={{ uri: 'https://example.com' }}
-        // Receive all intercept events (native or JS)
+        // Receive all intercept events (native or JS). e.request has URL/method/headers; e.response is present when proxied.
         onIntercept={(e) => {
-          console.log('[intercept]', e.kind, e.url);
+          console.log('[intercept]', e.kind, e.request.url, e.response?.status);
         }}
-        // When a native URL matches, invoke this callback
-        onNativeMatch={(url) => {
-          console.log('[native match]', url);
+        // Android: called with full payload when URL matches nativeUrlRegex (proxied request)
+        onNativeMatch={(e) => {
+          console.log('[native match]', e.request.url, e.response?.status);
         }}
-        // Optional (Android): regex used ONLY for onNativeMatch (not for filtering onIntercept)
+        // Android: decides which native requests are proxied (and populate e.response)
         nativeUrlRegex={String(/\.(m3u8|mp4|webm|mpd|ts)(\?.*)?$/i)}
       />
     </View>
@@ -63,9 +63,27 @@ export default function App() {
 Android‑first WebView. On Android it prefers a native Fabric view for request interception. On iOS or when the native view is unavailable, it renders a plain `View` (no web content).
 
 ```ts
-export type InterceptEvent = {
+export type InterceptRequest = {
   url: string;
+  method?: string;
+  headers?: Record<string, string>;
+  isMainFrame?: boolean;
+  hasUserGesture?: boolean;
+};
+
+export type InterceptResponse = {
+  status?: number;
+  reason?: string;
+  headers?: Record<string, string>;
+  mimeType?: string;
+  contentEncoding?: string;
+  contentLength?: number;
+};
+
+export type InterceptEvent = {
   kind: 'native' | 'dom' | 'video' | 'xhr' | 'fetch' | 'perf';
+  request: InterceptRequest;
+  response?: InterceptResponse; // present when URL matched nativeUrlRegex and was proxied
   userAgent?: string;
 };
 
@@ -77,8 +95,8 @@ export type InterceptProps = {
   style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
   source: InterceptSource;                    // Android native view only
   onIntercept?: (e: InterceptEvent) => void;  // native and JS-originated events
-  onNativeMatch?: (url: string) => void;      // Android only helper
-  nativeUrlRegex?: string;                    // Android only; used ONLY for onNativeMatch
+  onNativeMatch?: (e: InterceptEvent) => void;// Android only helper, full payload
+  nativeUrlRegex?: string;                    // Android only; decides which requests are proxied
   filterRegexes?: string[];                   // Android only (reserved)
   aggressiveDomHooking?: boolean;             // default: true (Android)
   echoAllRequestsFromJS?: boolean;            // default: false (Android)
@@ -91,9 +109,9 @@ export type InterceptProps = {
 
 #### Props
 
-- __`onIntercept`__: Called for every intercepted event coming from native or JS. Payload is `InterceptEvent`. Not filtered by `nativeUrlRegex`.
-- __`onNativeMatch` (Android)__: Convenience callback fired when a native URL matches `nativeUrlRegex`.
-- __`nativeUrlRegex` (Android)__: Case‑insensitive regex string used only for `onNativeMatch`. Defaults to a media‑focused regex (m3u8, mp4, webm, mpd, ts) via `buildDefaultVideoRegex()`.
+- __`onIntercept`__: Called for every intercepted event (native or JS). For Android native requests that match `nativeUrlRegex`, `e.response` will be populated with response metadata and the WebView will be served the proxied response.
+- __`onNativeMatch` (Android)__: Fired with the full payload when a native URL matches `nativeUrlRegex`.
+- __`nativeUrlRegex` (Android)__: Case‑insensitive regex string that decides which native requests are fully proxied and thus include `response`. Defaults to a media‑focused regex (m3u8, mp4, webm, mpd, ts) via `buildDefaultVideoRegex()`.
 - __`filterRegexes` (Android)__: Additional native filtering (reserved for parity; may be ignored).
 - __`aggressiveDomHooking` (Android)__: When true, the injected script watches the DOM for new `<video>`, `<source>`, `<iframe>` and posts events.
 - __`echoAllRequestsFromJS` (Android)__: When true, proxies JS `fetch`/`XMLHttpRequest` to RN via `postMessage`.
@@ -103,9 +121,9 @@ export type InterceptProps = {
 
 `onIntercept(e: InterceptEvent)`:
 
-- __`e.url`__: The URL detected.
 - __`e.kind`__: One of `native | dom | video | xhr | fetch | perf`.
-- __`e.userAgent?`__: Optional UA if available.
+- __`e.request`__: `{ url, method?, headers?, isMainFrame?, hasUserGesture? }`.
+- __`e.response?`__: Present when Android proxied the request due to `nativeUrlRegex` match: `{ status, reason, headers, mimeType, contentEncoding, contentLength }`.
 
 ### Named exports
 
@@ -134,14 +152,16 @@ import {
   echoAllRequestsFromJS
   nativeUrlRegex={String(/video|m3u8|mp4/i)}
   onIntercept={(e) => {
-    if (e.kind === 'native' || e.kind === 'video') {
-      // e.g., detect HLS playlist or media segment
-      console.log('media request:', e.url);
+    if (e.kind === 'native') {
+      console.log('native request:', e.request.url, e.request.method);
+      if (e.response) {
+        console.log('status:', e.response.status, 'mime:', e.response.mimeType);
+      }
     }
   }}
-  onNativeMatch={(url) => {
-    // Android-only: handy shortcut when URL matches nativeUrlRegex
-    console.log('matched native URL:', url);
+  onNativeMatch={(e) => {
+    // Android-only: handy shortcut with full payload when URL matches nativeUrlRegex
+    console.log('matched native URL:', e.request.url, 'status:', e.response?.status);
   }}
 /> 
 ```
@@ -153,8 +173,9 @@ In addition to the component event, a global event is broadcast for robustness:
 ```ts
 import { DeviceEventEmitter } from 'react-native';
 
-const sub = DeviceEventEmitter.addListener('RNInterceptNative', (url: string) => {
-  console.log('[global native intercept]', url);
+const sub = DeviceEventEmitter.addListener('RNInterceptNative', (e: InterceptEvent | string) => {
+  const full = typeof e === 'string' ? { kind: 'native', request: { url: e } } : e;
+  console.log('[global native intercept]', full.request.url, full.response?.status);
 });
 
 // Remember to remove it when appropriate:
@@ -169,6 +190,11 @@ sub.remove();
 - __iOS differences__
   - iOS has no native implementation. The component renders a plain `View` (no web content). Interception and JS hooks are not available.
 
+## Notes & limitations
+
+- Android `WebView` does not expose request bodies to `shouldInterceptRequest`. For JS‑initiated requests (fetch/XHR), consider enabling `echoAllRequestsFromJS` to capture request bodies via JS hooks. Non‑JS POST bodies (e.g., form submissions) are not available to the API.
+- iOS remains unchanged: only the JS fallback is available and does not provide native request interception.
+
 ## Planned features
 
 - __Ad blocking (Android)__
@@ -179,9 +205,10 @@ sub.remove();
   - Enable autoplay for `<video>` and embedded `<iframe>` players when permitted by site and OS policies.
   - Provide prop flags to control autoplay behavior and fallbacks.
 
-- __Intercepting headers (Android)__
-  - Inspect and optionally modify request headers and response headers for matching URLs.
-  - Expose safe hooks to view headers via `onIntercept` payload extensions.
+__Now available (Android)__: Full native request interception/proxying
+  - The Android layer can fully proxy matching requests (via `nativeUrlRegex`), capture response metadata, and serve the proxied response back to the WebView.
+  - Intercept events deliver structured payloads: `e.request` (url/method/headers/flags) and `e.response` (status/reason/headers/mime/encoding/contentLength) when proxied.
+  - Use `onIntercept` for all events and `onNativeMatch` for proxied matches.
 
 - __iOS support__
   - Implement a native iOS view with request interception and DOM/JS hooks.

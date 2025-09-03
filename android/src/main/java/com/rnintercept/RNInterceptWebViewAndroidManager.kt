@@ -11,6 +11,11 @@ import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import okhttp3.Headers
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.ResponseBody
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContext
@@ -42,9 +47,20 @@ open class RNInterceptWebViewAndroidManager(private val appContext: ReactApplica
               val url = try { request.url?.toString() } catch (_: Throwable) { null }
               if (url != null) {
                 try {
+                  val payload = Arguments.createMap()
+                  payload.putString("kind", "native")
+                  val reqInfo = Arguments.createMap()
+                  reqInfo.putString("url", url)
+                  try { reqInfo.putString("method", request.method ?: "GET") } catch (_: Throwable) {}
+                  try { reqInfo.putMap("headers", Arguments.createMap().apply {
+                    for ((k, v) in request.requestHeaders) putString(k, v)
+                  }) } catch (_: Throwable) {}
+                  try { reqInfo.putBoolean("isMainFrame", request.isForMainFrame) } catch (_: Throwable) {}
+                  try { reqInfo.putBoolean("hasUserGesture", request.hasGesture()) } catch (_: Throwable) {}
+                  payload.putMap("request", reqInfo)
                   context
                     .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-                    .emit("RNInterceptNative", url)
+                    .emit("RNInterceptNative", payload)
                 } catch (_: Throwable) {}
               }
               return null
@@ -92,6 +108,7 @@ open class RNInterceptWebViewAndroidManager(private val appContext: ReactApplica
   private val viewEchoMap = ConcurrentHashMap<Int, Boolean>()
   private val viewInjectedBeforeMap = ConcurrentHashMap<Int, String>()
   private val viewInjectedAfterMap = ConcurrentHashMap<Int, String>()
+  private val httpClient: OkHttpClient by lazy { OkHttpClient.Builder().build() }
 
   override fun createViewInstance(reactContext: ThemedReactContext): WebView {
     try { WebView.setWebContentsDebuggingEnabled(true) } catch (_: Throwable) {}
@@ -136,51 +153,156 @@ open class RNInterceptWebViewAndroidManager(private val appContext: ReactApplica
       }
 
       override fun shouldInterceptRequest(view: WebView, url: String?): WebResourceResponse? {
-        maybeEmit(view, url)
-        return null
+        return handleIntercept(view, url, null)
       }
 
       @TargetApi(Build.VERSION_CODES.LOLLIPOP)
       override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
         val url = request.url?.toString()
-        maybeEmit(view, url)
-        return null
+        return handleIntercept(view, url, request)
       }
 
-      private fun maybeEmit(view: WebView, url: String?) {
-        if (url.isNullOrEmpty()) return
-        val echo = viewEchoMap[view.id] == true
-        var matched = false
-        if (echo) {
-          matched = true
-        } else {
-          try {
-            val pattern = viewPatternMap[view.id]
-            matched = pattern?.matcher(url)?.find() == true
-          } catch (_: Throwable) { matched = false }
+      private fun buildHeadersMap(headers: Map<String, String>?): WritableMap {
+        val map = Arguments.createMap()
+        if (headers != null) {
+          for ((k, v) in headers) {
+            map.putString(k, v)
+          }
         }
-        // Note: Do NOT return when not matched. We always emit onIntercept for every request.
+        return map
+      }
 
+      private fun buildHeadersMap(headers: Headers): WritableMap {
+        val map = Arguments.createMap()
+        for (name in headers.names()) {
+          // Join multiple values with '\n' to preserve multiplicity
+          val values = headers.values(name)
+          map.putString(name, values.joinToString("\n"))
+        }
+        return map
+      }
+
+      private fun cloneMap(src: WritableMap): WritableMap {
+        val copy = Arguments.createMap()
+        try { (copy as com.facebook.react.bridge.WritableNativeMap).merge(src) } catch (_: Throwable) {
+          try { copy.merge(src) } catch (_: Throwable) {}
+        }
+        return copy
+      }
+
+      private fun emitEvent(view: WebView, payload: WritableMap, alsoBroadcast: Boolean = true) {
         try {
-          android.util.Log.i("RNInterceptWV", "maybeEmit url=${url}")
           val reactContext = view.context as ReactContext
-          val map: WritableMap = Arguments.createMap()
-          map.putString("url", url)
+          val broadcastPayload = if (alsoBroadcast) cloneMap(payload) else null
           reactContext.getJSModule(RCTEventEmitter::class.java)
-            .receiveEvent(view.id, "onIntercept", map)
-          // Also broadcast a global event for robustness
-          try {
+            .receiveEvent(view.id, "onIntercept", payload)
+          if (alsoBroadcast && broadcastPayload != null) {
             reactContext
               .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-              .emit("RNInterceptNative", url)
+              .emit("RNInterceptNative", broadcastPayload)
+          }
+        } catch (_: Throwable) {}
+      }
+
+      private fun handleIntercept(view: WebView, url: String?, request: WebResourceRequest?): WebResourceResponse? {
+        if (url.isNullOrEmpty()) return null
+        val pattern = viewPatternMap[view.id]
+        val matches = try { pattern?.matcher(url)?.find() == true } catch (_: Throwable) { false }
+
+        // Always emit a request event (without response yet)
+        try {
+          val reqMap = Arguments.createMap()
+          val reqInfo = Arguments.createMap()
+          reqInfo.putString("url", url)
+          if (request != null) {
+            try { reqInfo.putString("method", request.method ?: "GET") } catch (_: Throwable) {}
+            try { reqInfo.putMap("headers", buildHeadersMap(request.requestHeaders)) } catch (_: Throwable) {}
+            try { reqInfo.putBoolean("isMainFrame", request.isForMainFrame) } catch (_: Throwable) {}
+            try { reqInfo.putBoolean("hasUserGesture", request.hasGesture()) } catch (_: Throwable) {}
+          }
+          reqMap.putString("kind", "native")
+          reqMap.putMap("request", reqInfo)
+          emitEvent(view, reqMap, alsoBroadcast = true)
+        } catch (_: Throwable) {}
+
+        if (!matches) {
+          // Do not proxy; let WebView handle normally
+          return null
+        }
+
+        // Proxy matching requests via OkHttp to capture response details
+        return try {
+          android.util.Log.i("RNInterceptWV", "proxying url=${url}")
+          val builder = Request.Builder().url(url)
+          if (request != null) {
+            // Copy method when known. Body is not available here.
+            val method = try { request.method ?: "GET" } catch (_: Throwable) { "GET" }
+            builder.method(method, null)
+            val headers = request.requestHeaders
+            if (headers != null) {
+              for ((k, v) in headers) {
+                if (!k.equals("Host", true)) builder.addHeader(k, v)
+              }
+            }
+          }
+          val httpReq = builder.build()
+          val resp: Response = httpClient.newCall(httpReq).execute()
+
+          val body: ResponseBody? = resp.body
+          val mimeType = resp.header("Content-Type")?.let {
+            // extract mime type without charset
+            val semi = it.indexOf(';')
+            if (semi > 0) it.substring(0, semi) else it
+          } ?: "application/octet-stream"
+          val encoding = resp.header("Content-Encoding") ?: "utf-8"
+          val statusCode = resp.code
+          val reason = try { resp.message?.ifBlank { "OK" } ?: "OK" } catch (_: Throwable) { "OK" }
+          val headerMap = mutableMapOf<String, String>()
+          for (name in resp.headers.names()) {
+            headerMap[name] = resp.headers.values(name).joinToString("\n")
+          }
+
+          val responseStream = try { body?.byteStream() } catch (_: Throwable) { null }
+            ?: java.io.ByteArrayInputStream(ByteArray(0))
+          val webResp = WebResourceResponse(
+            mimeType,
+            encoding,
+            statusCode,
+            reason,
+            headerMap,
+            responseStream
+          )
+
+          // Emit detailed payload including response metadata
+          try {
+            val payload = Arguments.createMap()
+            payload.putString("kind", "native")
+            val reqInfo = Arguments.createMap()
+            reqInfo.putString("url", url)
+            if (request != null) {
+              try { reqInfo.putString("method", request.method ?: "GET") } catch (_: Throwable) {}
+              try { reqInfo.putMap("headers", buildHeadersMap(request.requestHeaders)) } catch (_: Throwable) {}
+              try { reqInfo.putBoolean("isMainFrame", request.isForMainFrame) } catch (_: Throwable) {}
+              try { reqInfo.putBoolean("hasUserGesture", request.hasGesture()) } catch (_: Throwable) {}
+            }
+            payload.putMap("request", reqInfo)
+
+            val respInfo = Arguments.createMap()
+            respInfo.putInt("status", statusCode)
+            respInfo.putString("reason", reason)
+            respInfo.putMap("headers", buildHeadersMap(resp.headers))
+            respInfo.putString("mimeType", mimeType)
+            respInfo.putString("contentEncoding", encoding)
+            try { respInfo.putDouble("contentLength", (body?.contentLength() ?: -1L).toDouble()) } catch (_: Throwable) {}
+            payload.putMap("response", respInfo)
+
+            emitEvent(view, payload, alsoBroadcast = true)
           } catch (_: Throwable) {}
+
+          webResp
         } catch (_: Throwable) {
-          try {
-            val reactContext = view.context as ReactContext
-            reactContext
-              .getJSModule(com.facebook.react.modules.core.DeviceEventManagerModule.RCTDeviceEventEmitter::class.java)
-              .emit("RNInterceptNative", url)
-          } catch (_: Throwable) {}
+          // On error, fallback to default handling
+          null
         }
       }
     }
