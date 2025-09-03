@@ -183,6 +183,10 @@ sub.remove();
   - Inspect and optionally modify request headers and response headers for matching URLs.
   - Expose safe hooks to view headers via `onIntercept` payload extensions.
 
+- __iOS support__
+  - Implement a native iOS view with request interception and DOM/JS hooks.
+  - Aim for feature parity with Android where permitted by WebKit and platform policies.
+
 ## Example app
 
 See `example/` for a minimal app using this component. Run with the usual RN commands from that workspace.
