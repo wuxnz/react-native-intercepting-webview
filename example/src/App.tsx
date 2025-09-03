@@ -15,7 +15,7 @@ export default function App() {
       <View style={styles.body}>
         <InterceptingWebView
           style={styles.webview}
-          source={{ uri: 'https://9animetv.to/watch/naruto-677?ep=12352' }}
+          source={{ uri: 'https://news.ycombinator.com' }}
           nativeUrlRegex={
             String(/(\.m3u8(\?.*)?$)|(\.mp4(\?.*)?$)|(\.webm(\?.*)?$)|(\.mpd(\?.*)?$)|(\.ts(\?.*)?$)/i)
           }
