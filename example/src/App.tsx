@@ -15,7 +15,8 @@ export default function App() {
       <View style={styles.body}>
         <InterceptingWebView
           style={styles.webview}
-          source={{ uri: 'https://news.ycombinator.com' }}
+          // source={{ uri: 'https://news.ycombinator.com' }}
+          source={{ uri: 'https://9animetv.to/watch/naruto-677?ep=12352' }}
           nativeUrlRegex={
             String(/(\.m3u8(\?.*)?$)|(\.mp4(\?.*)?$)|(\.webm(\?.*)?$)|(\.mpd(\?.*)?$)|(\.ts(\?.*)?$)/i)
           }
@@ -23,11 +24,11 @@ export default function App() {
           echoAllRequestsFromJS={false}
           onIntercept={(e) => {
             // eslint-disable-next-line no-console
-            console.log('[Example] onIntercept:', e);
+            console.log('[Example] onIntercept:', e.kind, e.request.url, e.response?.status);
           }}
-          onNativeMatch={(url) => {
+          onNativeMatch={(ev) => {
             // eslint-disable-next-line no-console
-            console.log('[Example] onNativeMatch:', url);
+            console.log('[Example] onNativeMatch:', ev.request.url, ev.response?.status, ev.response?.headers, ev.response?.headers);
           }}
         />
       </View>
