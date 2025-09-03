@@ -1,6 +1,6 @@
 # react-native-intercepting-webview
 
-Android‑first WebView with native request interception and rich JS hooks. Fall back to the standard JS `WebView` on iOS or when the native view is unavailable.
+Android‑first WebView with native request interception and rich JS hooks. On iOS or when the native view is unavailable, the component renders a plain `View` (no web content is displayed).
 
 This library lets you observe network requests initiated inside the WebView (e.g., HLS/DASH manifests, media segments, XHR/fetch) and DOM activity, and react to them from React Native.
 
@@ -14,17 +14,16 @@ Key points:
 
 - React Native: `0.81.x`
 - React: `19.x`
-- react-native-webview: `^13.8.6` (peer dependency)
-- Android: Native module preferred (Fabric view); iOS uses JS fallback path only.
+- Android: Native module preferred (Fabric view). iOS native view is not implemented.
 
 ## Installation
 
-Install the package and ensure you also have `react-native-webview` installed in your app:
+Install the package:
 
 ```sh
-yarn add react-native-intercepting-webview react-native-webview
+yarn add react-native-intercepting-webview
 # or
-npm i react-native-intercepting-webview react-native-webview
+npm i react-native-intercepting-webview
 ```
 
 On Android, autolinking should register the native view. No additional setup is required.
@@ -61,38 +60,44 @@ export default function App() {
 
 ### Component: `InterceptingWebView`
 
-Android‑first WebView. On Android it prefers a native Fabric view for request interception; otherwise it falls back to the standard JS `WebView` from `react-native-webview`.
+Android‑first WebView. On Android it prefers a native Fabric view for request interception. On iOS or when the native view is unavailable, it renders a plain `View` (no web content).
 
 ```ts
-import type { WebViewProps } from 'react-native-webview';
-
 export type InterceptEvent = {
   url: string;
   kind: 'native' | 'dom' | 'video' | 'xhr' | 'fetch' | 'perf';
   userAgent?: string;
 };
 
-export type InterceptProps = WebViewProps & {
-  onIntercept?: (e: InterceptEvent) => void;
-  onNativeMatch?: (url: string) => void; // Android only helper
-  nativeUrlRegex?: string;               // Android only; used ONLY for onNativeMatch
-  filterRegexes?: string[];              // Android only (reserved)
-  aggressiveDomHooking?: boolean;        // default: true
-  echoAllRequestsFromJS?: boolean;       // default: false
-  forceFallback?: boolean;               // Force JS WebView even on Android
+export type InterceptSource =
+  | { uri: string }
+  | { html: string };
+
+export type InterceptProps = {
+  style?: import('react-native').StyleProp<import('react-native').ViewStyle>;
+  source: InterceptSource;                    // Android native view only
+  onIntercept?: (e: InterceptEvent) => void;  // native and JS-originated events
+  onNativeMatch?: (url: string) => void;      // Android only helper
+  nativeUrlRegex?: string;                    // Android only; used ONLY for onNativeMatch
+  filterRegexes?: string[];                   // Android only (reserved)
+  aggressiveDomHooking?: boolean;             // default: true (Android)
+  echoAllRequestsFromJS?: boolean;            // default: false (Android)
+  forceFallback?: boolean;                    // Force plain View even on Android
+  injectedJavaScriptBeforeContentLoaded?: string; // Android only
+  injectedJavaScript?: string;                    // Android only
+  onMessage?: (e: import('react-native').NativeSyntheticEvent<{ data?: string }>) => void; // Android only
 };
 ```
 
 #### Props
 
-- __`...WebViewProps`__: All props from `react-native-webview` are supported and forwarded.
 - __`onIntercept`__: Called for every intercepted event coming from native or JS. Payload is `InterceptEvent`. Not filtered by `nativeUrlRegex`.
 - __`onNativeMatch` (Android)__: Convenience callback fired when a native URL matches `nativeUrlRegex`.
 - __`nativeUrlRegex` (Android)__: Case‑insensitive regex string used only for `onNativeMatch`. Defaults to a media‑focused regex (m3u8, mp4, webm, mpd, ts) via `buildDefaultVideoRegex()`.
 - __`filterRegexes` (Android)__: Additional native filtering (reserved for parity; may be ignored).
-- __`aggressiveDomHooking`__: When true, the injected script watches the DOM for new `<video>`, `<source>`, `<iframe>` and posts events.
-- __`echoAllRequestsFromJS`__: When true, proxies JS `fetch`/`XMLHttpRequest` to RN via `postMessage`.
-- __`forceFallback`__: Force the JS WebView path even on Android (helpful for debugging).
+- __`aggressiveDomHooking` (Android)__: When true, the injected script watches the DOM for new `<video>`, `<source>`, `<iframe>` and posts events.
+- __`echoAllRequestsFromJS` (Android)__: When true, proxies JS `fetch`/`XMLHttpRequest` to RN via `postMessage`.
+- __`forceFallback`__: Force the plain `View` path even on Android (helpful for debugging).
 
 #### Events
 
@@ -117,8 +122,8 @@ import {
 
 ## Platform notes
 
-- __Android__: Tries to instantiate one of the native components `RNNativeInterceptWebView` or `RNInterceptWebViewAndroid`. If found, it enables native request interception and injects helpers for DOM/JS events.
-- __iOS__: The native view is not implemented; the component always renders the JS `WebView` fallback and relies on injected scripts to surface events.
+- __Android__: Tries to instantiate one of the native components `RNNativeInterceptWebView` or `RNInterceptWebViewAndroid`. If found, it renders a native WebView, enables native request interception, and injects helpers for DOM/JS events.
+- __iOS__: The native view is not implemented. The component renders a plain `View` and does not display web content. Interception and injected script features are unavailable on iOS.
 
 ## Advanced usage
 
@@ -158,14 +163,11 @@ sub.remove();
 
 ## Troubleshooting
 
-- __TypeScript: "Cannot find module 'react-native-webview'"__
-  - Ensure your app has `react-native-webview` installed. When developing this library itself in a monorepo, add `react-native-webview` as a devDependency to satisfy editor/TS resolution (it remains a peer dependency for consumers).
-
 - __No native interception on Android__
   - The library auto-detects native view managers. If not found, it falls back to JS. Make sure Android autolinking is working and you rebuilt the app.
 
 - __iOS differences__
-  - iOS is fallback‑only. You will still get `dom/xhr/fetch` events, but there is no native network interception.
+  - iOS has no native implementation. The component renders a plain `View` (no web content). Interception and JS hooks are not available.
 
 ## Example app
 

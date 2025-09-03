@@ -114,7 +114,7 @@ Pre-commit hooks run these checks but do not block commits. Our CI will enforce 
   yarn dlx @yarnpkg/sdks vscode
   ```
 
-- The library depends on `react-native-webview` as a peer dependency, but to make TypeScript happy in this workspace we also include it as a devDependency. If you see "Cannot find module 'react-native-webview'", run `yarn` and restart the TS server.
+- The library no longer depends on `react-native-webview`. If your application uses it, install it in your app workspace and rely on its own types.
 
 ### Publishing to npm
 

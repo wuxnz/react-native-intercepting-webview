@@ -1,15 +1,4 @@
-declare module 'react-native-webview' {
-  import type { ComponentType } from 'react';
-
-  export interface WebViewProps {
-    source?: { uri?: string; html?: string };
-    injectedJavaScript?: string;
-    injectedJavaScriptBeforeContentLoaded?: string;
-    onMessage?: (e: { nativeEvent: { data?: string } }) => void;
-    style?: any;
-    [key: string]: any;
-  }
-
-  export const WebView: ComponentType<WebViewProps>;
-  export default WebView;
-}
+// This file is intentionally left blank.
+// The library no longer relies on `react-native-webview`, so we do not
+// augment or declare its types here. If your application uses
+// `react-native-webview`, install it in your app and use its own types.
