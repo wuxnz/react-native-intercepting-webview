@@ -169,6 +169,20 @@ sub.remove();
 - __iOS differences__
   - iOS has no native implementation. The component renders a plain `View` (no web content). Interception and JS hooks are not available.
 
+## Planned features
+
+- __Ad blocking (Android)__
+  - Apply filter lists or custom rules to block network requests and hide known ad/trackers within the native WebView.
+  - Likely implemented via native request interception + CSS/JS cosmetic filters.
+
+- __Autoplay for video and iframe elements (Android)__
+  - Enable autoplay for `<video>` and embedded `<iframe>` players when permitted by site and OS policies.
+  - Provide prop flags to control autoplay behavior and fallbacks.
+
+- __Intercepting headers (Android)__
+  - Inspect and optionally modify request headers and response headers for matching URLs.
+  - Expose safe hooks to view headers via `onIntercept` payload extensions.
+
 ## Example app
 
 See `example/` for a minimal app using this component. Run with the usual RN commands from that workspace.
