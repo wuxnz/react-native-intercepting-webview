@@ -132,7 +132,8 @@ export const InterceptingWebView: FC<InterceptProps> = ({
   injectedJavaScript,
   onMessage,
 }) => {
-  const ref = useRef<View | null>(null);
+  // Using any here avoids tight coupling to React Native type surface during d.ts emit
+  const ref = useRef<any>(null);
 
   const injected = useMemo(
     () => buildInjected({ aggressiveDomHooking, echoAllRequestsFromJS }),
@@ -143,7 +144,7 @@ export const InterceptingWebView: FC<InterceptProps> = ({
     (e: NativeSyntheticEvent<{ data?: string }>) => {
       try {
         try { console.log('[IWV] onMessage', String(e?.nativeEvent?.data ?? '')); } catch {}
-        const data = JSON.parse(e.nativeEvent?.data);
+        const data = JSON.parse(String(e.nativeEvent?.data ?? ''));
         if (data && data.__rnIntercept) {
           const payload = data.payload as InterceptEvent;
           onIntercept?.(payload);
@@ -235,7 +236,8 @@ export const InterceptingWebView: FC<InterceptProps> = ({
 
   // iOS and fallback: not implemented as native. Render an empty View.
   // The library currently focuses on Android native interception.
-  return <View style={style} ref={ref} />;
+  // Cast ref to any to satisfy minimal RN stubs during type emit
+  return <View style={style} ref={ref as any} />;
 };
 
 export default InterceptingWebView;
