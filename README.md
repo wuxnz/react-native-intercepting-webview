@@ -4,6 +4,12 @@ Android‑first WebView with native request interception and rich JS hooks. Fall
 
 This library lets you observe network requests initiated inside the WebView (e.g., HLS/DASH manifests, media segments, XHR/fetch) and DOM activity, and react to them from React Native.
 
+Key points:
+
+- Native (Android) emits an intercept event for every request.
+- `nativeUrlRegex` is used solely to trigger `onNativeMatch`; it does not filter `onIntercept`.
+- A global fallback event is also emitted via `DeviceEventEmitter` with the name `RNInterceptNative`.
+
 ## Requirements
 
 - React Native: `0.81.x`
@@ -43,8 +49,8 @@ export default function App() {
         onNativeMatch={(url) => {
           console.log('[native match]', url);
         }}
-        // Optional: customize which URLs native emits (Android)
-        nativeUrlRegex={/\.(m3u8|mp4|webm|mpd|ts)(\?.*)?$/i.source}
+        // Optional (Android): regex used ONLY for onNativeMatch (not for filtering onIntercept)
+        nativeUrlRegex={String(/\.(m3u8|mp4|webm|mpd|ts)(\?.*)?$/i)}
       />
     </View>
   );
@@ -69,7 +75,7 @@ export type InterceptEvent = {
 export type InterceptProps = WebViewProps & {
   onIntercept?: (e: InterceptEvent) => void;
   onNativeMatch?: (url: string) => void; // Android only helper
-  nativeUrlRegex?: string;               // Android only
+  nativeUrlRegex?: string;               // Android only; used ONLY for onNativeMatch
   filterRegexes?: string[];              // Android only (reserved)
   aggressiveDomHooking?: boolean;        // default: true
   echoAllRequestsFromJS?: boolean;       // default: false
@@ -80,9 +86,9 @@ export type InterceptProps = WebViewProps & {
 #### Props
 
 - __`...WebViewProps`__: All props from `react-native-webview` are supported and forwarded.
-- __`onIntercept`__: Called for every intercepted event coming from native or JS. Payload is `InterceptEvent`.
+- __`onIntercept`__: Called for every intercepted event coming from native or JS. Payload is `InterceptEvent`. Not filtered by `nativeUrlRegex`.
 - __`onNativeMatch` (Android)__: Convenience callback fired when a native URL matches `nativeUrlRegex`.
-- __`nativeUrlRegex` (Android)__: Case‑insensitive regex string. Defaults to a media‑focused regex (m3u8, mp4, webm, mpd, ts) via `buildDefaultVideoRegex()`.
+- __`nativeUrlRegex` (Android)__: Case‑insensitive regex string used only for `onNativeMatch`. Defaults to a media‑focused regex (m3u8, mp4, webm, mpd, ts) via `buildDefaultVideoRegex()`.
 - __`filterRegexes` (Android)__: Additional native filtering (reserved for parity; may be ignored).
 - __`aggressiveDomHooking`__: When true, the injected script watches the DOM for new `<video>`, `<source>`, `<iframe>` and posts events.
 - __`echoAllRequestsFromJS`__: When true, proxies JS `fetch`/`XMLHttpRequest` to RN via `postMessage`.
@@ -121,7 +127,7 @@ import {
   source={{ uri: 'https://video.example.com' }}
   aggressiveDomHooking
   echoAllRequestsFromJS
-  nativeUrlRegex={/video|m3u8|mp4/i.source}
+  nativeUrlRegex={String(/video|m3u8|mp4/i)}
   onIntercept={(e) => {
     if (e.kind === 'native' || e.kind === 'video') {
       // e.g., detect HLS playlist or media segment
@@ -133,6 +139,21 @@ import {
     console.log('matched native URL:', url);
   }}
 /> 
+```
+
+### Global native event (Android)
+
+In addition to the component event, a global event is broadcast for robustness:
+
+```ts
+import { DeviceEventEmitter } from 'react-native';
+
+const sub = DeviceEventEmitter.addListener('RNInterceptNative', (url: string) => {
+  console.log('[global native intercept]', url);
+});
+
+// Remember to remove it when appropriate:
+sub.remove();
 ```
 
 ## Troubleshooting

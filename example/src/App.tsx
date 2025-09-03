@@ -2,6 +2,7 @@ import { StatusBar, StyleSheet, Text, View } from 'react-native';
 import { InterceptingWebView } from 'react-native-intercepting-webview';
 
 export default function App() {
+  console.log('App');
   return (
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" />
@@ -14,7 +15,7 @@ export default function App() {
       <View style={styles.body}>
         <InterceptingWebView
           style={styles.webview}
-          source={{ uri: 'https://news.ycombinator.com' }}
+          source={{ uri: 'https://9animetv.to/watch/naruto-677?ep=12352' }}
           nativeUrlRegex={
             String(/(\.m3u8(\?.*)?$)|(\.mp4(\?.*)?$)|(\.webm(\?.*)?$)|(\.mpd(\?.*)?$)|(\.ts(\?.*)?$)/i)
           }

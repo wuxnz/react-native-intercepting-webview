@@ -1483,7 +1483,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@babel/runtime@npm:^7.25.0":
+"@babel/runtime@npm:^7, @babel/runtime@npm:^7.25.0":
   version: 7.28.3
   resolution: "@babel/runtime@npm:7.28.3"
   checksum: dd22662b9e02b6e66cfb061d6f9730eb0aa3b3a390a7bd70fe9a64116d86a3704df6d54ab978cb4acc13b58dbf63a3d7dd4616b0b87030eb14a22835e0aa602d
@@ -10278,7 +10278,7 @@ __metadata:
   dependencies:
     "@babel/core": ^7.25.2
     "@babel/preset-env": ^7.25.3
-    "@babel/runtime": ^7.25.0
+    "@babel/runtime": ^7
     "@react-native-community/cli": 20.0.0
     "@react-native-community/cli-platform-android": 20.0.0
     "@react-native-community/cli-platform-ios": 20.0.0
@@ -10290,13 +10290,14 @@ __metadata:
     react: 19.1.0
     react-native: 0.81.0
     react-native-builder-bob: ^0.40.13
+    react-native-intercepting-webview: "workspace:*"
     react-native-monorepo-config: ^0.1.9
-    react-native-safe-area-context: ^5.5.2
-    react-native-webview: ^13.8.6
+    react-native-safe-area-context: ^5.6.1
+    react-native-webview: 13.16.0
   languageName: unknown
   linkType: soft
 
-"react-native-intercepting-webview@workspace:.":
+"react-native-intercepting-webview@workspace:*, react-native-intercepting-webview@workspace:.":
   version: 0.0.0-use.local
   resolution: "react-native-intercepting-webview@workspace:."
   dependencies:
@@ -10318,17 +10319,13 @@ __metadata:
     eslint-plugin-prettier: ^5.2.3
     jest: ^29.7.0
     prettier: ^3.0.3
-    react: 19.1.0
-    react-native: 0.81.0
     react-native-builder-bob: ^0.40.13
-    react-native-webview: ^13.16.0
     release-it: ^17.10.0
     turbo: ^1.10.7
     typescript: ^5.8.3
   peerDependencies:
     react: "*"
     react-native: "*"
-    react-native-webview: "*"
   languageName: unknown
   linkType: soft
 
@@ -10342,7 +10339,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-safe-area-context@npm:^5.5.2":
+"react-native-safe-area-context@npm:^5.6.1":
   version: 5.6.1
   resolution: "react-native-safe-area-context@npm:5.6.1"
   peerDependencies:
@@ -10352,7 +10349,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"react-native-webview@npm:^13.16.0, react-native-webview@npm:^13.8.6":
+"react-native-webview@npm:13.16.0":
   version: 13.16.0
   resolution: "react-native-webview@npm:13.16.0"
   dependencies:

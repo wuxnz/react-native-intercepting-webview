@@ -1,13 +1,12 @@
-import React, { useCallback, useEffect, useMemo, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef, type FC } from 'react';
 import {
   DeviceEventEmitter,
   Platform,
   UIManager,
   requireNativeComponent,
+  View,
 } from 'react-native';
 import type { NativeSyntheticEvent } from 'react-native';
-import type { WebViewProps } from 'react-native-webview';
-import { WebView } from 'react-native-webview';
 import { buildInjected } from './injected';
 
 /**
@@ -25,7 +24,13 @@ export type InterceptEvent = {
  * (RNNativeInterceptWebView or RNInterceptWebViewAndroid),
  * otherwise it falls back to the JS WebView.
  */
-export type InterceptProps = WebViewProps & {
+export type InterceptSource =
+  | { uri: string }
+  | { html: string };
+
+export type InterceptProps = {
+  style?: any;
+  source: InterceptSource;
   /** Called whenever a request is intercepted (native or JS). */
   onIntercept?: (e: InterceptEvent) => void;
   /** If provided, when a native URL matches the regex, this callback will be invoked. */
@@ -40,15 +45,20 @@ export type InterceptProps = WebViewProps & {
   echoAllRequestsFromJS?: boolean;
   /** Force fallback to JS WebView even on Android. Useful for debugging. */
   forceFallback?: boolean;
+  /** Raw JS executed before content loads. */
+  injectedJavaScriptBeforeContentLoaded?: string;
+  /** Raw JS executed after content loads. */
+  injectedJavaScript?: string;
+  /** Receive raw postMessage events from the page. */
+  onMessage?: (e: NativeSyntheticEvent<any>) => void;
 };
 
 const COMPONENT_CANDIDATES_ANDROID = [
-  'RNNativeInterceptWebView',
   'RNInterceptWebViewAndroid',
+  'RNNativeInterceptWebView',
 ];
 
 let RNInterceptNative: any = null;
-let RNInterceptNativeName: string | null = null;
 if (Platform.OS === 'android') {
   try {
     for (const name of COMPONENT_CANDIDATES_ANDROID) {
@@ -56,13 +66,11 @@ if (Platform.OS === 'android') {
       if (cfg) {
         const comp = requireNativeComponent(name);
         RNInterceptNative = comp;
-        RNInterceptNativeName = name;
         break;
       }
     }
   } catch (e) {
     RNInterceptNative = null;
-    RNInterceptNativeName = null;
   }
 }
 
@@ -71,11 +79,29 @@ export function buildDefaultVideoRegex() {
   return String(/(\.m3u8(\?.*)?$)|(\.mp4(\?.*)?$)|(\.webm(\?.*)?$)|(\.mpd(\?.*)?$)|(\.ts(\?.*)?$)/i);
 }
 
+function parseRegexString(s?: string): RegExp | null {
+  if (!s) return null;
+  try {
+    const trimmed = String(s).trim();
+    if (trimmed.startsWith('/') && trimmed.lastIndexOf('/') > 0) {
+      const last = trimmed.lastIndexOf('/');
+      const body = trimmed.slice(1, last);
+      const flags = trimmed.slice(last + 1);
+      return new RegExp(body, flags || '');
+    }
+    return new RegExp(trimmed, 'i');
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Android-first WebView with native request interception and rich JS hooks.
  * iOS is intentionally not implemented and will use the JS fallback path.
  */
-export const InterceptingWebView: React.FC<InterceptProps> = ({
+export const InterceptingWebView: FC<InterceptProps> = ({
+  style,
+  source,
   onIntercept,
   onNativeMatch,
   nativeUrlRegex,
@@ -84,10 +110,10 @@ export const InterceptingWebView: React.FC<InterceptProps> = ({
   echoAllRequestsFromJS = false,
   forceFallback,
   injectedJavaScriptBeforeContentLoaded,
+  injectedJavaScript,
   onMessage,
-  ...rest
 }) => {
-  const ref = useRef<WebView>(null);
+  const ref = useRef<any>(null);
 
   const injected = useMemo(
     () => buildInjected({ aggressiveDomHooking, echoAllRequestsFromJS }),
@@ -97,6 +123,7 @@ export const InterceptingWebView: React.FC<InterceptProps> = ({
   const handleMessage = useCallback(
     (e: NativeSyntheticEvent<any>) => {
       try {
+        try { console.log('[IWV] onMessage', String(e?.nativeEvent?.data ?? '')); } catch {}
         const data = JSON.parse(e.nativeEvent?.data);
         if (data && data.__rnIntercept) {
           const payload = data.payload as InterceptEvent;
@@ -126,11 +153,12 @@ export const InterceptingWebView: React.FC<InterceptProps> = ({
     const sub = DeviceEventEmitter.addListener('RNInterceptNative', (url: string) => {
       try {
         if (!url) return;
+        try { console.log('[IWV] global onIntercept', String(url)); } catch {}
         onIntercept?.({ url: String(url), kind: 'native' });
         if (onNativeMatch && nativeUrlRegex) {
           try {
-            const re = new RegExp(nativeUrlRegex, 'i');
-            if (re.test(String(url))) onNativeMatch(String(url));
+            const re = parseRegexString(nativeUrlRegex);
+            if (re && re.test(String(url))) onNativeMatch(String(url));
           } catch { }
         }
       } catch { }
@@ -155,60 +183,40 @@ export const InterceptingWebView: React.FC<InterceptProps> = ({
     `;
 
     const props: any = {
-      ...rest,
-      messagingEnabled: true,
-      javaScriptEnabled: true,
-      domStorageEnabled: true,
+      style,
+      source,
       nativeUrlRegex: nativeUrlRegex || buildDefaultVideoRegex(),
       filterRegexes,
+      echoAllRequestsFromJS,
       injectedJavaScriptBeforeContentLoaded:
         injected + (injectedJavaScriptBeforeContentLoaded || ''),
       injectedJavaScript:
-        injected + (injectedJavaScriptBeforeContentLoaded || '') + manualPing,
+        injected + (injectedJavaScriptBeforeContentLoaded || '') + (injectedJavaScript || '') + manualPing,
       onIntercept: (e: any) => {
         try {
           const url = e?.nativeEvent?.url ?? e?.url;
-          if (url) onIntercept?.({ url: String(url), kind: 'native' });
+          if (url) {
+            try { console.log('[IWV] direct onIntercept', String(url)); } catch {}
+            onIntercept?.({ url: String(url), kind: 'native' });
+            if (onNativeMatch && nativeUrlRegex) {
+              try {
+                const re = parseRegexString(nativeUrlRegex);
+                if (re && re.test(String(url))) onNativeMatch(String(url));
+              } catch {}
+            }
+          }
         } catch { }
       },
       onMessage: handleMessage,
       ref,
     };
-    return React.createElement(RNInterceptNative, props);
+    try { console.log('[IWV] Using native view'); } catch {}
+    return <RNInterceptNative {...props} />;
   }
 
-  // Fallback path: plain WebView
-  const manualPing = `
-    (function(){
-      try {
-        if (window.ReactNativeWebView && window.ReactNativeWebView.postMessage) {
-          window.ReactNativeWebView.postMessage(
-            JSON.stringify({ __rnIntercept: true, payload: { kind: 'dom', url: '__manual_post_injected_fallback__' } })
-          );
-        } else {
-          window.__rnInterceptQueue = window.__rnInterceptQueue || [];
-          window.__rnInterceptQueue.push(JSON.stringify({ __rnIntercept: true, payload: { kind: 'dom', url: '__manual_post_queued__' } }));
-        }
-      } catch(e) {}
-    })();
-    true;
-  `;
-
-  return (
-    <WebView
-      {...rest}
-      injectedJavaScript={
-        injected + (injectedJavaScriptBeforeContentLoaded || '') + manualPing
-      }
-      injectedJavaScriptBeforeContentLoaded={
-        injected + (injectedJavaScriptBeforeContentLoaded || '')
-      }
-      javaScriptEnabled
-      domStorageEnabled
-      onMessage={handleMessage}
-      ref={ref}
-    />
-  );
+  // iOS and fallback: not implemented as native. Render an empty View.
+  // The library currently focuses on Android native interception.
+  return <View style={style} ref={ref} />;
 };
 
 export default InterceptingWebView;

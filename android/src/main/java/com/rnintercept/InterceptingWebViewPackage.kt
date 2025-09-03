@@ -11,7 +11,12 @@ import com.facebook.react.uimanager.ViewManager
  */
 class InterceptingWebViewPackage : ReactPackage {
   override fun createViewManagers(reactContext: ReactApplicationContext): MutableList<ViewManager<*, *>> {
-    return mutableListOf(NativeInterceptWebViewManager(reactContext))
+    return mutableListOf<ViewManager<*, *>>(
+      // Preferred new name
+      RNInterceptWebViewAndroidManager(reactContext),
+      // Legacy compatibility name
+      NativeInterceptWebViewManager(reactContext)
+    )
   }
 
   override fun createNativeModules(reactContext: ReactApplicationContext): MutableList<NativeModule> {
