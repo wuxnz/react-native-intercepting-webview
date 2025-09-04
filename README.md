@@ -4,6 +4,8 @@ Android‑first WebView with native request interception and rich JS hooks. On i
 
 This library lets you observe network requests initiated inside the WebView (e.g., HLS/DASH manifests, media segments, XHR/fetch) and DOM activity, and react to them from React Native.
 
+> Shout‑out: Big thanks to [Durgesh](https://github.com/2004durgesh) for the idea to switch to a native WebView implementation instead of using `react-native-webview` as a base.
+
 Key points:
 
 - Native (Android) emits an intercept event for every request. For URLs that match `nativeUrlRegex`, the Android layer proxies the request to capture response metadata and serves it back to the WebView.
